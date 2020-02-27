@@ -19,6 +19,13 @@ struct Frontier {
   std::vector<geometry_msgs::Point> points;
 };
 
+struct Boundary {
+  double min_x;
+  double min_y;
+  double max_x;
+  double max_y;
+};
+
 /**
  * @brief Thread-safe implementation of a frontier-search task for an input
  * costmap.
@@ -35,7 +42,9 @@ public:
    * @param costmap Reference to costmap data to search.
    */
   FrontierSearch(costmap_2d::Costmap2D* costmap, double potential_scale,
-                 double gain_scale, double min_frontier_size);
+                 double gain_scale, double min_frontier_size,
+                 double min_x, double min_y, double max_x,
+                 double max_y);
 
   /**
    * @brief Runs search implementation, outward from the start position
@@ -69,6 +78,15 @@ protected:
                          const std::vector<bool>& frontier_flag);
 
   /**
+   * @brief determines if frontier is within the boundaries
+   * @details ll
+   *
+   * @param 
+   * @return cost of the frontier
+   */
+  void getWithinBoundaries(std::vector<Frontier> &frontier_list, const Boundary boundary);
+
+  /**
    * @brief computes frontier cost
    * @details cost function is defined by potential_scale and gain_scale
    *
@@ -83,6 +101,10 @@ private:
   unsigned int size_x_, size_y_;
   double potential_scale_, gain_scale_;
   double min_frontier_size_;
+  double min_x_;
+  double min_y_;
+  double max_x_;
+  double max_y_;
 };
 }
 #endif

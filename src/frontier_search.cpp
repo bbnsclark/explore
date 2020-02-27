@@ -1,7 +1,7 @@
 #include <explore/frontier_search.h>
 
 #include <mutex>
-
+#include <ros/ros.h>
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/Point.h>
@@ -16,17 +16,24 @@ using costmap_2d::FREE_SPACE;
 
 FrontierSearch::FrontierSearch(costmap_2d::Costmap2D* costmap,
                                double potential_scale, double gain_scale,
-                               double min_frontier_size)
+                               double min_frontier_size,
+                               double min_x, double min_y, double max_x,
+                               double max_y)
   : costmap_(costmap)
   , potential_scale_(potential_scale)
   , gain_scale_(gain_scale)
   , min_frontier_size_(min_frontier_size)
+  , min_x_(min_x)
+  , min_y_(min_y)
+  , max_x_(max_x)
+  , max_y_(max_y)
 {
 }
 
 std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position)
 {
   std::vector<Frontier> frontier_list;
+  std::vector<Frontier> bounded_frontier_list;
 
   // Sanity check that robot is inside costmap bounds before searching
   unsigned int mx, my;
@@ -82,6 +89,16 @@ std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position)
       }
     }
   }
+
+  Boundary boundary;
+  boundary.min_x = min_x_;
+  boundary.min_y = min_y_;
+  boundary.max_x = max_x_;
+  boundary.max_y = max_y_;
+
+  //now that we have our basic frontier list, we can prune the frontiers that
+  // are not within the desired boundaries
+  getWithinBoundaries(frontier_list, boundary);
 
   // set costs of frontiers
   for (auto& frontier : frontier_list) {
@@ -188,10 +205,29 @@ bool FrontierSearch::isNewFrontierCell(unsigned int idx,
   return false;
 }
 
+void FrontierSearch::getWithinBoundaries(std::vector<Frontier> &frontier_list,
+                                                         const Boundary boundary)
+{
+
+  for (int i = 0; i < frontier_list.size(); i++)  
+  {
+    if (frontier_list[i].centroid.x*costmap_->getResolution() <= boundary.min_x || 
+        frontier_list[i].centroid.x*costmap_->getResolution() >= boundary.max_x || 
+        frontier_list[i].centroid.y*costmap_->getResolution() <= boundary.min_y ||
+        frontier_list[i].centroid.y*costmap_->getResolution() >= boundary.max_y )
+    {
+      frontier_list.erase(frontier_list.begin() + i);
+      ROS_INFO("Deleted frontier");
+    }
+  }
+
+}
+
 double FrontierSearch::frontierCost(const Frontier& frontier)
 {
-  return (potential_scale_ * frontier.min_distance *
+  return (potential_scale_ * (1.0/frontier.min_distance) *
           costmap_->getResolution()) -
          (gain_scale_ * frontier.size * costmap_->getResolution());
 }
+
 }
