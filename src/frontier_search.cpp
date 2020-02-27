@@ -211,13 +211,23 @@ void FrontierSearch::getWithinBoundaries(std::vector<Frontier> &frontier_list,
 
   for (int i = 0; i < frontier_list.size(); i++)  
   {
-    if (frontier_list[i].centroid.x*costmap_->getResolution() <= boundary.min_x || 
-        frontier_list[i].centroid.x*costmap_->getResolution() >= boundary.max_x || 
-        frontier_list[i].centroid.y*costmap_->getResolution() <= boundary.min_y ||
-        frontier_list[i].centroid.y*costmap_->getResolution() >= boundary.max_y )
+
+    double delta_x = costmap_->getSizeInCellsX()*costmap_->getResolution()/2.0;
+    double delta_y = costmap_->getSizeInCellsY()*costmap_->getResolution()/2.0;
+
+    std::cout << "Centroid X: " << frontier_list[i].centroid.x << " Y:" << frontier_list[i].centroid.y << " \n";
+
+    if (frontier_list[i].centroid.x - delta_x <= boundary.min_x || 
+        frontier_list[i].centroid.x - delta_x >= boundary.max_x || 
+        frontier_list[i].centroid.y - delta_y <= boundary.min_y ||
+        frontier_list[i].centroid.y - delta_y >= boundary.max_y )
     {
       frontier_list.erase(frontier_list.begin() + i);
-      ROS_INFO("Deleted frontier");
+      std::cout << "Frontier deleted \n";
+    }
+    else
+    {
+      std::cout << "Frontier not deleted \n";
     }
   }
 
