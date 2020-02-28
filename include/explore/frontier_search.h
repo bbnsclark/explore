@@ -2,6 +2,7 @@
 #define FRONTIER_SEARCH_H_
 
 #include <costmap_2d/costmap_2d.h>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace frontier_exploration
 {
@@ -44,7 +45,7 @@ public:
   FrontierSearch(costmap_2d::Costmap2D* costmap, double potential_scale,
                  double gain_scale, double min_frontier_size,
                  double min_x, double min_y, double max_x,
-                 double max_y);
+                 double max_y, geometry_msgs::PoseStamped initial_pose);
 
   /**
    * @brief Runs search implementation, outward from the start position
@@ -78,13 +79,25 @@ protected:
                          const std::vector<bool>& frontier_flag);
 
   /**
+   * @brief calculates boundaries in map frame
+   * @details 
+   *
+   * @param 
+   * @return boundaries for exploration
+   */
+  Boundary getMapBoundary(const double min_x, const double min_y, 
+                                const double max_x, const double max_y, 
+                                const double init_x, const double init_y, 
+                                const double theta);
+
+  /**
    * @brief determines if frontier is within the boundaries
-   * @details ll
+   * @details 
    *
    * @param 
    * @return cost of the frontier
    */
-  void getWithinBoundaries(std::vector<Frontier> &frontier_list, const Boundary boundary);
+  void getBoundedFrontierList(std::vector<Frontier> &frontier_list, const Boundary boundary);
 
   /**
    * @brief computes frontier cost
@@ -105,6 +118,10 @@ private:
   double min_y_;
   double max_x_;
   double max_y_;
+  double roll_;
+  double pitch_;
+  double theta_;
+  geometry_msgs::PoseStamped initial_pose_;
 };
 }
 #endif

@@ -1,5 +1,5 @@
 #include <explore/explore.h>
-
+#include <ros/ros.h>
 #include <thread>
 
 inline static bool operator==(const geometry_msgs::Point& one,
@@ -36,10 +36,23 @@ Explore::Explore(double min_x, double min_y, double max_x, double max_y)
   private_nh_.param("gain_scale", gain_scale_, 1.0);
   private_nh_.param("min_frontier_size", min_frontier_size, 0.5);
 
+  geometry_msgs::PoseStamped pose;
+  geometry_msgs::PoseStampedConstPtr msg = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("map_pose", ros::Duration(10));
+  if (msg == NULL)
+  {
+    ROS_INFO("No pose messages received");
+  }
+  else
+  {   
+    pose = * msg;
+  }
+
+  //geometry_msgs::PoseStamped pose = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/map_pose", ros::Duration(10.0));
+
   search_ = frontier_exploration::FrontierSearch(costmap_client_.getCostmap(),
                                                  potential_scale_, gain_scale_,
                                                  min_frontier_size,
-                                                 min_x_, min_y_, max_x_, max_y_);
+                                                 min_x_, min_y_, max_x_, max_y_, pose);
 
   if (visualize_) {
     marker_array_publisher_ =
@@ -265,6 +278,7 @@ void Explore::stop()
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "explore");
+
   if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME,
                                      ros::console::levels::Debug)) {
     ros::console::notifyLoggerLevelsChanged();

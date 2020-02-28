@@ -1,12 +1,14 @@
 #include <explore/frontier_search.h>
 
 #include <mutex>
+#include <math.h>
 #include <ros/ros.h>
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/Point.h>
-
+#include <tf/transform_datatypes.h>
 #include <explore/costmap_tools.h>
+
 
 namespace frontier_exploration
 {
@@ -18,7 +20,7 @@ FrontierSearch::FrontierSearch(costmap_2d::Costmap2D* costmap,
                                double potential_scale, double gain_scale,
                                double min_frontier_size,
                                double min_x, double min_y, double max_x,
-                               double max_y)
+                               double max_y, geometry_msgs::PoseStamped initial_pose)
   : costmap_(costmap)
   , potential_scale_(potential_scale)
   , gain_scale_(gain_scale)
@@ -27,13 +29,20 @@ FrontierSearch::FrontierSearch(costmap_2d::Costmap2D* costmap,
   , min_y_(min_y)
   , max_x_(max_x)
   , max_y_(max_y)
+  , initial_pose_(initial_pose)
+  , roll_(0.0)
+  , pitch_(0.0)
+  , theta_(0.0)
 {
+  tf::Pose pose;
+  tf::poseMsgToTF(initial_pose_.pose, pose);
+  theta_ = tf::getYaw(pose.getRotation());
+
 }
 
 std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position)
 {
   std::vector<Frontier> frontier_list;
-  std::vector<Frontier> bounded_frontier_list;
 
   // Sanity check that robot is inside costmap bounds before searching
   unsigned int mx, my;
@@ -90,15 +99,14 @@ std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position)
     }
   }
 
-  Boundary boundary;
-  boundary.min_x = min_x_;
-  boundary.min_y = min_y_;
-  boundary.max_x = max_x_;
-  boundary.max_y = max_y_;
+  Boundary boundary = getMapBoundary(min_x_, min_y_, max_x_, max_y_, 
+                                     initial_pose_.pose.position.x, 
+                                     initial_pose_.pose.position.y, 
+                                     theta_);
 
   //now that we have our basic frontier list, we can prune the frontiers that
   // are not within the desired boundaries
-  getWithinBoundaries(frontier_list, boundary);
+  getBoundedFrontierList( frontier_list, boundary);
 
   // set costs of frontiers
   for (auto& frontier : frontier_list) {
@@ -205,29 +213,61 @@ bool FrontierSearch::isNewFrontierCell(unsigned int idx,
   return false;
 }
 
-void FrontierSearch::getWithinBoundaries(std::vector<Frontier> &frontier_list,
+Boundary FrontierSearch::getMapBoundary(const double min_x, const double min_y, 
+                                          const double max_x, const double max_y, 
+                                          const double init_x, const double init_y, 
+                                          const double theta)
+{
+
+  Boundary boundary;
+
+  boundary.min_x = init_x + cos(theta) * min_x + sin(theta) * min_y;
+  boundary.min_y = init_y + sin(theta) * min_x - cos(theta) * min_y;
+
+  boundary.max_x = init_x + cos(theta) * max_x + sin(theta) * max_y;
+  boundary.max_y = init_y + sin(theta) * max_x - cos(theta) * max_y;
+
+  if (boundary.max_x <= boundary.min_x)
+  {
+    double temp_x = boundary.max_x;
+    boundary.max_x = boundary.min_x;
+    boundary.min_x = temp_x;
+  }
+
+  if (boundary.max_y <= boundary.min_y)
+  {
+    double temp_y = boundary.max_y;
+    boundary.max_y = boundary.min_y;
+    boundary.min_y = temp_y;
+  }
+
+
+  return boundary;
+
+}
+
+void FrontierSearch::getBoundedFrontierList(std::vector<Frontier> &frontier_list,
                                                          const Boundary boundary)
 {
+
+  std::cout << "Boundaries: Xmin: " << boundary.min_x << " Xmax:" << boundary.max_x << " Ymin: " << boundary.min_y << " Ymax:" << boundary.max_y << " \n";
 
   for (int i = 0; i < frontier_list.size(); i++)  
   {
 
-    double delta_x = costmap_->getSizeInCellsX()*costmap_->getResolution()/2.0;
-    double delta_y = costmap_->getSizeInCellsY()*costmap_->getResolution()/2.0;
+    std::cout << "Frontier at X: " << frontier_list[i].centroid.x << " Y:" << frontier_list[i].centroid.y << " \n";
 
-    std::cout << "Centroid X: " << frontier_list[i].centroid.x << " Y:" << frontier_list[i].centroid.y << " \n";
-
-    if (frontier_list[i].centroid.x - delta_x <= boundary.min_x || 
-        frontier_list[i].centroid.x - delta_x >= boundary.max_x || 
-        frontier_list[i].centroid.y - delta_y <= boundary.min_y ||
-        frontier_list[i].centroid.y - delta_y >= boundary.max_y )
+    if (frontier_list[i].centroid.x <= boundary.min_x || 
+        frontier_list[i].centroid.x >= boundary.max_x || 
+        frontier_list[i].centroid.y <= boundary.min_y ||
+        frontier_list[i].centroid.y >= boundary.max_y )
     {
+      std::cout << "...deleted \n";
       frontier_list.erase(frontier_list.begin() + i);
-      std::cout << "Frontier deleted \n";
     }
     else
     {
-      std::cout << "Frontier not deleted \n";
+      std::cout << " ...not deleted\n";
     }
   }
 
