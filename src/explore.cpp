@@ -1,5 +1,6 @@
 #include <explore/explore.h>
 #include <ros/ros.h>
+#include <exploration/CmdExplore.h>
 #include <thread>
 
 inline static bool operator==(const geometry_msgs::Point& one,
@@ -13,20 +14,15 @@ inline static bool operator==(const geometry_msgs::Point& one,
 
 namespace explore
 {
-Explore::Explore(double min_x, double min_y, double max_x, double max_y)
+Explore::Explore()
   : private_nh_("~")
   , tf_listener_(ros::Duration(10.0))
   , costmap_client_(private_nh_, relative_nh_, &tf_listener_)
   , move_base_client_("move_base")
   , prev_distance_(0)
   , last_markers_count_(0)
-  , min_x_(min_x)
-  , min_y_(min_y)
-  , max_x_(max_x)
-  , max_y_(max_y)
 {
   double timeout;
-  double min_frontier_size;
   private_nh_.param("planner_frequency", planner_frequency_, 1.0);
   private_nh_.param("progress_timeout", timeout, 30.0);
   progress_timeout_ = ros::Duration(timeout);
@@ -34,43 +30,94 @@ Explore::Explore(double min_x, double min_y, double max_x, double max_y)
   private_nh_.param("potential_scale", potential_scale_, 1e-3);
   private_nh_.param("orientation_scale", orientation_scale_, 0.0);
   private_nh_.param("gain_scale", gain_scale_, 1.0);
-  private_nh_.param("min_frontier_size", min_frontier_size, 0.5);
-
-  geometry_msgs::PoseStamped pose;
-  geometry_msgs::PoseStampedConstPtr msg = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("map_pose", ros::Duration(10));
-  if (msg == NULL)
-  {
-    ROS_INFO("No pose messages received");
-  }
-  else
-  {   
-    pose = * msg;
-  }
-
-  //geometry_msgs::PoseStamped pose = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/map_pose", ros::Duration(10.0));
-
-  search_ = frontier_exploration::FrontierSearch(costmap_client_.getCostmap(),
-                                                 potential_scale_, gain_scale_,
-                                                 min_frontier_size,
-                                                 min_x_, min_y_, max_x_, max_y_, pose);
+  private_nh_.param("min_frontier_size", min_frontier_size_, 0.5);
 
   if (visualize_) {
     marker_array_publisher_ =
         private_nh_.advertise<visualization_msgs::MarkerArray>("frontiers", 10);
   }
 
+  msg_ = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("map_pose", ros::Duration(10));
+  if (msg_ == NULL)
+  {
+    ROS_INFO("No pose messages received");
+  }
+  else
+  {   
+    pose_ = * msg_;
+  }
+
   ROS_INFO("Waiting to connect to move_base server");
   move_base_client_.waitForServer();
   ROS_INFO("Connected to move_base server");
 
-  exploring_timer_ =
-      relative_nh_.createTimer(ros::Duration(1. / planner_frequency_),
-                               [this](const ros::TimerEvent&) { makePlan(); });
+  service_ = relative_nh_.advertiseService("cmd_explore", &Explore::commandExploration, this);
+  ROS_INFO("Command Exporation service instantiated...");
+
 }
 
 Explore::~Explore()
 {
   stop();
+}
+
+bool Explore::commandExploration(exploration::CmdExploreRequest  &req, exploration::CmdExploreResponse &res)
+{
+
+  if (req.cmd == "start")
+  {
+
+    search_ = frontier_exploration::FrontierSearch(costmap_client_.getCostmap(),
+                                                  potential_scale_, gain_scale_,
+                                                  min_frontier_size_,
+                                                  req.min_x, req.min_y, req.max_x, req.max_y, pose_);
+
+    exploring_timer_ = relative_nh_.createTimer(ros::Duration(1. / planner_frequency_),
+                                [this](const ros::TimerEvent&) { makePlan(); });
+
+    start();
+
+    res.response = "Exploration initiated";
+    
+  }
+  else if (req.cmd == "stop")
+  {
+
+    stop();
+
+    res.response = "Exploration stopped";
+
+  }
+  else if (req.cmd == "restart")
+  {
+
+    msg_ = ros::topic::waitForMessage<geometry_msgs::PoseStamped>("map_pose", ros::Duration(10));
+
+    if (msg_ == NULL)
+    {
+      ROS_INFO("No pose messages received");
+    }
+    else
+    {   
+      pose_ = * msg_;
+    }
+
+    search_ = frontier_exploration::FrontierSearch(costmap_client_.getCostmap(),
+                                                  potential_scale_, gain_scale_,
+                                                  min_frontier_size_,
+                                                  req.min_x, req.min_y, req.max_x, req.max_y, pose_);
+
+    exploring_timer_ = relative_nh_.createTimer(ros::Duration(1. / planner_frequency_),
+                                [this](const ros::TimerEvent&) { makePlan(); });
+
+    start();
+
+    res.response = "Exploration initiated";
+    
+  }
+
+  return true;
+
 }
 
 void Explore::visualizeFrontiers(
@@ -161,7 +208,7 @@ void Explore::makePlan()
 {
   // find frontiers
   auto pose = costmap_client_.getRobotPose();
-  // get frontiers sorted according to cost
+  // get frontiepose_rs sorted according to cost
   auto frontiers = search_.searchFrom(pose.position);
   ROS_DEBUG("found %lu frontiers", frontiers.size());
   for (size_t i = 0; i < frontiers.size(); ++i) {
@@ -279,12 +326,11 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "explore");
 
-  if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME,
-                                     ros::console::levels::Debug)) {
+  if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME,ros::console::levels::Debug)) {
     ros::console::notifyLoggerLevelsChanged();
   }
 
-  explore::Explore explore(0.0, -10.0, 20.0, 10.0);
+  explore::Explore explore;
 
   ros::spin();
 

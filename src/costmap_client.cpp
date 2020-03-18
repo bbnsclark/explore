@@ -16,11 +16,12 @@ Costmap2DClient::Costmap2DClient(ros::NodeHandle& param_nh,
                                  const tf::TransformListener* tf)
   : tf_(tf)
 {
+  ROS_INFO("HERE!");
   std::string costmap_topic;
   std::string footprint_topic;
   std::string costmap_updates_topic;
-  param_nh.param("costmap_topic", costmap_topic, std::string("costmap"));
-  param_nh.param("costmap_updates_topic", costmap_updates_topic,
+  param_nh.param("costmap_topic", costmap_topic, std::string("map"));
+  param_nh.param("map_updates", costmap_updates_topic,
                  std::string("costmap_updates"));
   param_nh.param("robot_base_frame", robot_base_frame_,
                  std::string("base_link"));

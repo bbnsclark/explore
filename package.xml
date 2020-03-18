@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>explore_lite</name>
+  <name>exploration</name>
   <version>2.1.1</version>
 
   <description>Lightweight frontier-based exploration.</description>
@@ -21,6 +21,8 @@
   <depend>tf</depend>
   <depend>costmap_2d</depend>
   <depend>actionlib</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
 
   <test_depend>roslaunch</test_depend>
 </package>

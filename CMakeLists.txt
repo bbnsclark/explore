@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(explore_lite)
+project(exploration)
 
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
@@ -14,6 +14,18 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   visualization_msgs
+  message_generation
+  message_runtime
+)
+
+add_service_files(
+  FILES
+  CmdExplore.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
 )
 
 ###################################
@@ -28,6 +40,8 @@ catkin_package(
     nav_msgs
     std_msgs
     visualization_msgs
+    message_generation
+    message_runtime
 )
 
 ###########

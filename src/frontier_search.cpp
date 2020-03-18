@@ -37,7 +37,6 @@ FrontierSearch::FrontierSearch(costmap_2d::Costmap2D* costmap,
   tf::Pose pose;
   tf::poseMsgToTF(initial_pose_.pose, pose);
   theta_ = tf::getYaw(pose.getRotation());
-
 }
 
 std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position)
@@ -104,19 +103,23 @@ std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position)
                                      initial_pose_.pose.position.y, 
                                      theta_);
 
+  std::cout << "Initial frontier size: " << frontier_list.size();
+
   //now that we have our basic frontier list, we can prune the frontiers that
   // are not within the desired boundaries
-  getBoundedFrontierList( frontier_list, boundary);
+  std::vector<Frontier> bounded_frontier_list = getBoundedFrontierList(frontier_list, boundary);
+
+  std::cout << "Bounded frontier size: " << bounded_frontier_list.size();
 
   // set costs of frontiers
-  for (auto& frontier : frontier_list) {
+  for (auto& frontier : bounded_frontier_list) {
     frontier.cost = frontierCost(frontier);
   }
   std::sort(
-      frontier_list.begin(), frontier_list.end(),
+      bounded_frontier_list.begin(), bounded_frontier_list.end(),
       [](const Frontier& f1, const Frontier& f2) { return f1.cost < f2.cost; });
 
-  return frontier_list;
+  return bounded_frontier_list;
 }
 
 Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell,
@@ -221,11 +224,11 @@ Boundary FrontierSearch::getMapBoundary(const double min_x, const double min_y,
 
   Boundary boundary;
 
-  boundary.min_x = init_x + cos(theta) * min_x + sin(theta) * min_y;
-  boundary.min_y = init_y + sin(theta) * min_x - cos(theta) * min_y;
+  boundary.min_x = init_x + (cos(theta) * min_x + sin(theta) * min_y);
+  boundary.min_y = init_y + (sin(theta) * min_x - cos(theta) * min_y);
 
-  boundary.max_x = init_x + cos(theta) * max_x + sin(theta) * max_y;
-  boundary.max_y = init_y + sin(theta) * max_x - cos(theta) * max_y;
+  boundary.max_x = init_x + (cos(theta) * max_x + sin(theta) * max_y);
+  boundary.max_y = init_y + (sin(theta) * max_x - cos(theta) * max_y);
 
   if (boundary.max_x <= boundary.min_x)
   {
@@ -246,38 +249,39 @@ Boundary FrontierSearch::getMapBoundary(const double min_x, const double min_y,
 
 }
 
-void FrontierSearch::getBoundedFrontierList(std::vector<Frontier> &frontier_list,
+std::vector<Frontier> FrontierSearch::getBoundedFrontierList(std::vector<Frontier> frontier_list,
                                                          const Boundary boundary)
 {
 
+  std::vector<Frontier> bounded_frontier_list;
+
   std::cout << "Boundaries: Xmin: " << boundary.min_x << " Xmax:" << boundary.max_x << " Ymin: " << boundary.min_y << " Ymax:" << boundary.max_y << " \n";
 
-  for (int i = 0; i < frontier_list.size(); i++)  
+  for (int i = 0; i < frontier_list.size(); ++i)  
   {
 
     std::cout << "Frontier at X: " << frontier_list[i].centroid.x << " Y:" << frontier_list[i].centroid.y << " \n";
 
-    if (frontier_list[i].centroid.x <= boundary.min_x || 
-        frontier_list[i].centroid.x >= boundary.max_x || 
-        frontier_list[i].centroid.y <= boundary.min_y ||
-        frontier_list[i].centroid.y >= boundary.max_y )
+    if (frontier_list[i].centroid.x >= boundary.min_x && 
+        frontier_list[i].centroid.x <= boundary.max_x && 
+        frontier_list[i].centroid.y >= boundary.min_y &&
+        frontier_list[i].centroid.y <= boundary.max_y )
     {
-      std::cout << "...deleted \n";
-      frontier_list.erase(frontier_list.begin() + i);
+      std::cout << "...appended \n";
+      bounded_frontier_list.insert(bounded_frontier_list.begin(), 1, frontier_list[i]);
     }
-    else
-    {
-      std::cout << " ...not deleted\n";
-    }
+    
   }
+
+  return bounded_frontier_list;
 
 }
 
 double FrontierSearch::frontierCost(const Frontier& frontier)
 {
   return (potential_scale_ * (1.0/frontier.min_distance) *
-          costmap_->getResolution()) -
-         (gain_scale_ * frontier.size * costmap_->getResolution());
+          costmap_->getResolution() -
+         (gain_scale_ * frontier.size * costmap_->getResolution()));
 }
 
 }

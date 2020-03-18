@@ -97,7 +97,7 @@ protected:
    * @param 
    * @return cost of the frontier
    */
-  void getBoundedFrontierList(std::vector<Frontier> &frontier_list, const Boundary boundary);
+  std::vector<Frontier> getBoundedFrontierList(std::vector<Frontier> frontier_list, const Boundary boundary);
 
   /**
    * @brief computes frontier cost

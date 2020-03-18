@@ -10,6 +10,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <ros/ros.h>
+#include <exploration/CmdExplore.h>
 #include <visualization_msgs/MarkerArray.h>
 
 #include <explore/costmap_client.h>
@@ -28,8 +29,6 @@ public:
   Explore();
   ~Explore();
 
-  Explore(double min_x, double min_y, double max_x, double max_y);
-
   void start();
   void stop();
 
@@ -40,10 +39,14 @@ private:
   void makePlan();
 
   /**
+   * @brief  Exploration service callback to control exporation
+   */
+  bool commandExploration(exploration::CmdExploreRequest  &req, exploration::CmdExploreResponse &res);
+
+  /**
    * @brief  Publish a frontiers as markers
    */
-  void visualizeFrontiers(
-      const std::vector<frontier_exploration::Frontier>& frontiers);
+  void visualizeFrontiers(const std::vector<frontier_exploration::Frontier>& frontiers);
 
   void reachedGoal(const actionlib::SimpleClientGoalState& status,
                    const move_base_msgs::MoveBaseResultConstPtr& result,
@@ -62,6 +65,9 @@ private:
   frontier_exploration::FrontierSearch search_;
   ros::Timer exploring_timer_;
   ros::Timer oneshot_;
+  ros::ServiceServer service_;
+  geometry_msgs::PoseStamped pose_;
+  geometry_msgs::PoseStampedConstPtr msg_;
 
   std::vector<geometry_msgs::Point> frontier_blacklist_;
   geometry_msgs::Point prev_goal_;
@@ -71,13 +77,9 @@ private:
 
   // parameters
   double planner_frequency_;
-  double potential_scale_, orientation_scale_, gain_scale_;
+  double potential_scale_, orientation_scale_, gain_scale_, min_frontier_size_;
   ros::Duration progress_timeout_;
   bool visualize_;
-  double min_x_;
-  double min_y_;
-  double max_x_;
-  double max_y_;
 };
 }
 
